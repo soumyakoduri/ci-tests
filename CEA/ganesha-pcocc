@@ -1,0 +1,146 @@
+set -o pipefail
+
+if [[ -n "$GERRIT_REFSPEC" ]]; then
+  GERRIT_REF="$GERRIT_REFSPEC"
+  REVISION="$GERRIT_PATCHSET_REVISION"
+  GERRIT_PUBLISH=true
+  CHECKPATCH=false
+fi
+
+SSH_GERRIT="ssh -p 29418 cea-gerrithub-hpc@review.gerrithub.io"
+cleanup() {
+  pcocc ssh -j $PCOCC_ID vm0 -- sudo poweroff || true
+  pcocc ssh -j $PCOCC_ID vm1 -- sudo poweroff || true
+  rm -rf $HOME/.pcocc/job_$PCOCC_ID
+  if [[ "$VERF" != "-1" ]]; then
+    exit 0
+  else
+    exit 1
+  fi
+}
+
+gerrit_publish() {
+  NOTIFY="ALL"
+  [[ "$VERF" != "-1" ]] && NOTIFY="NONE"
+
+  if [[ "$GERRIT_PUBLISH" == "true" ]]; then
+    echo '{"message": "'"$MESSAGE"'", "labels": { "Verified": '"$VERF"' }, "notify": '"$NOTIFY"' }' | \
+      $SSH_GERRIT "gerrit review --json --project ffilz/nfs-ganesha $REVISION"
+  else
+    echo "echo '{\"message\": \"$MESSAGE\", \"labels\": { \"Verified\": \"$VERF\" }, \"notify\": \"$NOTIFY\" }' | \\
+      $SSH_GERRIT \\
+        \"gerrit review --json --project ffilz/nfs-ganesha $REVISION\""
+  fi
+
+  cleanup
+}
+
+# make test_report current. keep old one because jenkins doesn't like if there's none...
+touch test_report.xml
+
+# Fetch sources
+if ! [ -d nfs-ganesha/.git ]; then
+  git clone ssh://cea-gerrithub-hpc@review.gerrithub.io:29418/ffilz/nfs-ganesha.git
+else
+ ( cd nfs-ganesha/src/libntirpc && git fetch --all )
+fi
+
+( cd nfs-ganesha && git fetch origin $GERRIT_REF )
+
+if ! [ -d nfs-ganesha/src/libntirpc/.git ]; then
+  ( cd nfs-ganesha/src && rm -rf libntirpc && git clone git://github.com/nfs-ganesha/ntirpc.git libntirpc )
+else
+  ( cd nfs-ganesha/src/libntirpc && git fetch --all )
+fi
+
+( cd nfs-ganesha && git checkout $REVISION && git submodule update --init )
+
+
+# checkpatch as a separate update
+publish_checkpatch() {
+  if [[ "$GERRIT_PUBLISH" == "true" && "$CHECKPATCH" == "true" ]]; then
+    tee /proc/$$/fd/1 | $SSH_GERRIT "gerrit review --json --project ffilz/nfs-ganesha $REVISION"
+  else
+    echo "Would have submit:"
+    echo -n "echo '"
+    cat
+    echo "' | $SSH_GERRIT \"gerrit review --json --project $PROJECT $COMMIT\""
+  fi 
+}
+
+GIT_DIR=nfs-ganesha/.git git show --format=email                     | \
+  ./nfs-ganesha/src/scripts/checkpatch.pl -q -                       | \
+  python ~/checkpatch-to-gerrit-json.py                              | \
+  publish_checkpatch || true
+# FIXME: temporarily use a copy in ~ until new one pushed
+#  python nfs-ganesha/src/scripts/gerrit/checkpatch-to-gerrit-json.py | \
+
+# skip commits with WIP/RFC
+if GIT_DIR=nfs-ganesha/.git git show --format=oneline --quiet | grep -qE "WIP|^RFC"; then
+  exit 0
+fi
+
+rm -f pcocc_*.{err,out} server_logs mount_logs test_logs
+PCOCC_ID=$(pcocc batch -w $(hostname -s) -c 4 ganesha:2 | awk '{print $NF}')
+PCOCC_FILE=/tmp/.pcocc_${PCOCC_ID}_vm_0
+
+while ! [[ -e $PCOCC_FILE ]]; do
+  sleep 1
+done
+
+# VM sometimes refuse first ssh, try twice:
+pcocc ssh -j $PCOCC_ID -o ConnectTimeout=600 vm0 -- "echo VM started" || { sleep 10; pcocc ssh -j $PCOCC_ID -o ConnectTimeout=600 vm0 -- "echo VM started"; }
+
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo mount -t 9p -o trans=virtio workspace /mnt && cp -a /mnt/nfs-ganesha /export/nfs-ganesha && mkdir /export/nfs-ganesha/build"
+
+if ! pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc"; then
+	VERF="-1"
+	MESSAGE="Cmake failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON  -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc 2>&1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+	gerrit_publish
+fi
+
+if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8"; then
+	VERF="-1"	
+	MESSAGE="Build failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && make 2>&1 >/dev/null" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+	gerrit_publish
+fi
+
+timeout 30m pcocc ssh -j $PCOCC_ID vm0 sudo gdb --batch --ex r --ex bt --args /export/nfs-ganesha/build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /opt/ganesha.vfs.conf  2>&1 | tee server_logs&
+SERVER=$!
+
+if ! pcocc ssh -j $PCOCC_ID vm1 "sleep 5; sudo mount -t 9p -o aname=export,cache=mmap,privport=1,posixacl,msize=1048576,trans=tcp 10.251.0.1 /mnt" | tee mount_logs; then
+	VERF="0"
+	MESSAGE="Build OK - 9p mount failed\n\nmount:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' mount_logs)\nserver:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
+	gerrit_publish
+fi
+
+timeout 30m pcocc ssh -j $PCOCC_ID vm1 -- sudo /opt/sigmund/sigmund.sh 9p_plus_pynfs -j -q -s $SIGMUND_SPEED 2>&1 | tee test_logs || true
+pcocc ssh -j $PCOCC_ID vm1 -- sudo umount /mnt || true
+pcocc ssh -j $PCOCC_ID vm0 -- sudo pkill ganesha.nfsd || true
+
+if ! wait $SERVER || ! grep -q "exited normally" server_logs; then
+  VERF="-1"
+  MESSAGE="Build OK - server crashed/hang:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)\ntest logs:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' test_logs)"
+  gerrit_publish
+fi
+
+if ! pcocc scp -j $PCOCC_ID -- vm1:/tmp/test_report.xml .; then
+  VERF="-1"
+  MESSAGE="Build OK - tests didn't finish?\nserver logs:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)\ntest logs:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' test_logs)"
+  gerrit_publish
+fi
+
+TEST_TOTAL=$(grep -c '<testcase' test_report.xml) || true
+TEST_SKIPPED=$(grep -c '<skipped' test_report.xml) || true
+TEST_TOTAL=$((TEST_TOTAL-TEST_SKIPPED))
+TEST_FAILED=$(grep -c '<failure' test_report.xml) || true
+if [[ "$TEST_FAILED" == "0" ]]; then
+  VERF="1"
+  MESSAGE="Build OK - tests OK ($TEST_TOTAL)"
+else
+  FAILURES=$(grep -B1 '<failure' test_report.xml | sed -ne 's/.*name="\([^"]*\)".*/\1/p' || true)
+  VERF="0"
+  MESSAGE="Build OK - tests failures ($TEST_FAILED/$TEST_TOTAL failed):"$'\n'"$FAILURES"$'\n'"server log:"$'\n'"$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
+fi
+
+gerrit_publish

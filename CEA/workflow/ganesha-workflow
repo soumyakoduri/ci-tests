@@ -1,0 +1,42 @@
+node('ci-ganesha1') {
+  checkout changelog: false, poll: false, scm: [$class: 'GitSCM', branches: [[name: '**']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'a1ee7e9e-3dcf-43c3-8a30-7a5e5aa7dcb3', refspec: "$GERRIT_REF", url: 'ssh://cea-gerrithub-hpc@review.gerrithub.io:29418/ffilz/nfs-ganesha.git']]]
+  sh "git checkout $REVISION"
+  // git submodule update --init now works, but this is more robust to time
+  sh "if [ -d src/libntirpc/.git ]; then cd src/libntirpc; git fetch --all; else cd src; rm -rf libntirpc; git clone git://github.com/nfs-ganesha/ntirpc.git libntirpc; fi"
+  sh "git submodule update"
+  try {
+    sh "rm -rf build; mkdir build; ( cd build &&  cmake ../src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON; )"
+  } catch ( e ) {
+    sh "REVISION=$REVISION GERRIT_PUBLISH=$GERRIT_PUBLISH /root/publish_gerrit.sh cmake"
+    error "cmake"
+  }
+  try {
+    sh "(cd build && make -j8;)"
+  } catch ( e ) {
+    sh "REVISION=$REVISION GERRIT_PUBLISH=$GERRIT_PUBLISH /root/publish_gerrit.sh build"
+    error "build failed"
+  }
+
+  try {
+    parallel firstBranch: {
+      sh "./build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /root/ganesha.vfs.conf"
+    }, secondBranch: {
+      node('ci-ganesha2') {
+        sh "rm -f /tmp/test_report.xml"
+        sleep 5
+        sh "mount -t 9p -o aname=export,cache=mmap,privport=1,posixacl,msize=1048576 10.2.3.177 /mnt" // get ci-ganesha1 IP
+        timeout(30) {
+          sh "/opt/sigmund/sigmund.sh 9p_plus_pynfs -j -q -s $SIGMUND_SPEED || true"
+        }
+        sh "umount -i /mnt"
+      }
+      sh "pkill ganesha.nfsd"
+    }, failFast: true
+  } finally {
+    node('ci-ganesha2') {
+      sh "cp /tmp/test_report.xml ."
+      step([$class: 'JUnitResultArchiver', testResults: 'test_report.xml'])
+      sh "REVISION=$REVISION GERRIT_PUBLISH=$GERRIT_PUBLISH /root/publish_gerrit.sh"
+    }
+  }
+}
