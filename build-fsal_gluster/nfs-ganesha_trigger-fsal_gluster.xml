@@ -137,6 +137,9 @@
       <command># no need for verbose output
 set +x
 
+# do not immediately fail on an error
+set +e
+
 # download and run the bootstrap script
 curl -o bootstrap.py ${BOOTSTRAP_SCRIPT}
 python bootstrap.py
@@ -153,44 +156,55 @@ case ${RET} in
 	MESSAGE=&quot;${BUILD_URL}/console : SUCCESS&quot;
 	VERIFIED=&apos;--verified +1&apos;
 	NOTIFY=&apos;--notify ALL&apos;
+	EXIT=0
 	;;
 1)
 	MESSAGE=&quot;${BUILD_URL}/console : FAILED&quot;
 	VERIFIED=&apos;--verified -1&apos;
 	NOTIFY=&apos;--notify ALL&apos;
+	EXIT=1
 	;;
 10)
 	MESSAGE=&quot;${BUILD_URL}/console : SUCCESS (skipping vote)&quot;
 	VERIFIED=&apos;&apos;
 	NOTIFY=&apos;--notify NONE&apos;
+	EXIT=0
 	;;
 11)
 	MESSAGE=&quot;${BUILD_URL}/console : FAILED (skipping vote)&quot;
 	VERIFIED=&apos;&apos;
 	NOTIFY=&apos;--notify NONE&apos;
+	EXIT=1
 	;;
 *)
 	MESSAGE=&quot;${BUILD_URL}/console : unknown return value ${RET}&quot;
 	VERIFIED=&apos;&apos;
 	NOTIFY=&apos;--notify NONE&apos;
+	EXIT=1
+	;;
 esac
 
+echo &quot;${MESSAGE}&quot;
+
 # Update Gerrit with the success/failure status
-ssh \
-    -l jenkins-glusterorg \
-    -i ~/.ssh/gerrithub@gluster.org \
-    -o StrictHostKeyChecking=no \
-    -p 29418 \
-    review.gerrithub.io \
-    gerrit review \
-        --message &quot;${MESSAGE}&quot; \
-        --project ffilz/nfs-ganesha \
-        ${VERIFIED} \
-        ${NOTIFY} \
-        ${GERRIT_PATCHSET_REVISION}
+if [ -n &quot;${GERRIT_PATCHSET_REVISION}&quot; ]
+then
+    ssh \
+        -l jenkins-glusterorg \
+        -i ~/.ssh/gerrithub@gluster.org \
+        -o StrictHostKeyChecking=no \
+        -p 29418 \
+        ${GERRIT_HOST} \
+        gerrit review \
+            --message &quot;&apos;${MESSAGE}&apos;&quot; \
+            --project ${GERRIT_PROJECT} \
+            ${VERIFIED} \
+            ${NOTIFY} \
+            ${GERRIT_PATCHSET_REVISION}
+fi
 
 # exit with SUCCESS or FAIL only
-[ ${RET} -eq 0 ]</command>
+exit ${EXIT}</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
