@@ -16,12 +16,12 @@
         <hudson.model.StringParameterDefinition>
           <name>BOOTSTRAP_SCRIPT</name>
           <description>Python script that reserves a machine from Duffy and starts the ${TEST_SCRIPT}.</description>
-          <defaultValue>https://raw.githubusercontent.com/nixpanic/nfs-ganesha_ci-tests/centos-ci/build-fsal_gluster/build-fsal_gluster/bootstrap.py</defaultValue>
+          <defaultValue>https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/build-fsal_gluster/bootstrap.py</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>TEST_SCRIPT</name>
           <description>Test script to execute on the reserved machine, should move to the some NFS-Ganesha upstream testing repo at one point.</description>
-          <defaultValue>https://raw.githubusercontent.com/nixpanic/nfs-ganesha_ci-tests/centos-ci/build-fsal_gluster/build-fsal_gluster/build-fsal_gluster.sh</defaultValue>
+          <defaultValue>https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/build-fsal_gluster/build-fsal_gluster.sh</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.ChoiceParameterDefinition>
           <name>GERRIT_HOST</name>
