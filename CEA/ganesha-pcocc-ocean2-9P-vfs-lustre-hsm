@@ -1,3 +1,5 @@
+#!/bin/bash -xe
+
 set -o pipefail
 
 if [[ -n "$GERRIT_REFSPEC" ]]; then
@@ -24,7 +26,7 @@ gerrit_publish() {
   [[ "$VERF" != "-1" ]] && NOTIFY="NONE"
 
   if [[ "$GERRIT_PUBLISH" == "true" ]]; then
-    echo '{"message": "'"$MESSAGE"'", "labels": { "Verified": '"$VERF"' }, "notify": '"$NOTIFY"' }' | \
+    echo '{"message": "OCEAN 2 9P access over IB to a VFS FSAL export of a local HSM Lustre : '"$MESSAGE"'", "labels": { "Verified": '"$VERF"' }, "notify": '"$NOTIFY"' }' | \
       $SSH_GERRIT "gerrit review --json --project ffilz/nfs-ganesha $REVISION"
   else
     echo "echo '{\"message\": \"$MESSAGE\", \"labels\": { \"Verified\": \"$VERF\" }, \"notify\": \"$NOTIFY\" }' | \\
@@ -57,26 +59,6 @@ fi
 
 ( cd nfs-ganesha && git checkout $REVISION && git submodule update --init )
 
-
-# checkpatch as a separate update
-publish_checkpatch() {
-  if [[ "$GERRIT_PUBLISH" == "true" && "$CHECKPATCH" == "true" ]]; then
-    tee /proc/$$/fd/1 | $SSH_GERRIT "gerrit review --json --project ffilz/nfs-ganesha $REVISION"
-  else
-    echo "Would have submit:"
-    echo -n "echo '"
-    cat
-    echo "' | $SSH_GERRIT \"gerrit review --json --project $PROJECT $COMMIT\""
-  fi 
-}
-
-GIT_DIR=nfs-ganesha/.git git show --format=email                     | \
-  ./nfs-ganesha/src/scripts/checkpatch.pl -q -                       | \
-  python ~/checkpatch-to-gerrit-json.py                              | \
-  publish_checkpatch || true
-# FIXME: temporarily use a copy in ~ until new one pushed
-#  python nfs-ganesha/src/scripts/gerrit/checkpatch-to-gerrit-json.py | \
-
 # skip commits with WIP/RFC
 if GIT_DIR=nfs-ganesha/.git git show --format=oneline --quiet | grep -qE "WIP|^RFC"; then
   exit 0
@@ -87,7 +69,7 @@ rm -f pcocc_*.{err,out} server_logs mount_logs test_logs
 #####################
 #LAUNCH PCOCC VM
 #####################
-PCOCC_ID=$(pcocc batch -w $(hostname -s) -c 4 ganesha:2 | awk '{print $NF}')
+PCOCC_ID=$(pcocc batch -w $(hostname -s) -c 4 ganesha-ocean2:2 | awk '{print $NF}')
 
 PCOCC_FILE=/tmp/.pcocc_${PCOCC_ID}_vm_0
 
@@ -104,39 +86,58 @@ pcocc ssh -j $PCOCC_ID -o ConnectTimeout=600 vm0 -- "echo VM started" || { sleep
 #####################
 #Copy ganesha source through a 9P mount from jenkins workspace to /export device
 #####################
-pcocc ssh -j $PCOCC_ID vm0 -- "sudo mount -t 9p -o trans=virtio workspace /mnt && cp -a /mnt/nfs-ganesha /export/nfs-ganesha && mkdir /export/nfs-ganesha/build"
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo mount -t 9p -o trans=virtio workspace /mnt/workspace && cp -a /mnt/workspace/nfs-ganesha /export/nfs-ganesha && mkdir /export/nfs-ganesha/build"
 
 #####################
 #TRY CONFIG GANESHA ON vm0
 #####################
-if ! pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc"; then
-	VERF="-1"
-	MESSAGE="Cmake failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON  -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc 2>&1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
-	gerrit_publish
+if ! pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON"; then
+    VERF="-1"
+    MESSAGE="Cmake failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr 2>&1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+    gerrit_publish
 fi
 
 #####################
 #TRY BUILD GANESHA ON vm0
 #####################
 if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8"; then
-	VERF="-1"	
-	MESSAGE="Build failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && make 2>&1 >/dev/null" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
-	gerrit_publish
+    VERF="-1"
+    MESSAGE="Build failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && make 2>&1 >/dev/null" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+    gerrit_publish
 fi
+
+#####################
+#Start Lustre on vm0
+#####################
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo MGSNID=10.251.0.1@o2ib /usr/lib64/lustre/tests/llmount.sh"
+
+
+#####################
+#Start HSM on Lustre on vm0
+#####################
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo chmod og+x /mnt/lustre/.lustre/fid"
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo bash -c \"echo enabled > /proc/fs/lustre/mdt/lustre-MDT0000/hsm_control\""
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo bash -c \"echo \\\"RESTORE ARCHIVE\\\" > /proc/fs/lustre/mdt/lustre-MDT0000/hsm/user_request_mask\""
+pcocc ssh -j $PCOCC_ID vm0 -- "sudo mkdir -p /tmp/hsm_backend"
+pcocc ssh -j $PCOCC_ID vm0 sudo lhsmtool_posix --hsm_root=/tmp/hsm_backend --no-shadow --daemon /mnt/lustre 2>&1 | tee lhsm_logs &
+
+
 
 #####################
 #LAUNCH GANESHA SERVER ON vm0
 #####################
-timeout 30m pcocc ssh -j $PCOCC_ID vm0 sudo gdb --batch --ex r --ex bt --args /export/nfs-ganesha/build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /opt/ganesha.vfs.conf  2>&1 | tee server_logs&
+timeout 30m pcocc ssh -j $PCOCC_ID vm0 sudo gdb --batch --ex r --ex bt --args /export/nfs-ganesha/build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /opt/ganesha.conf  2>&1 | tee server_logs&
 SERVER=$!
 
 #####################
-#9P mount on /mnt on vm1
+#9P mount on /mnt/sigmund on vm1
 #####################
-if ! pcocc ssh -j $PCOCC_ID vm1 "sleep 5; sudo mount -t 9p -o aname=export,cache=mmap,privport=1,posixacl,msize=1048576,trans=tcp 10.251.0.1 /mnt" | tee mount_logs; then
-	VERF="0"
-	MESSAGE="Build OK - 9p mount failed\n\nmount:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' mount_logs)\nserver:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
-	gerrit_publish
+#Waiting a 9p client updated (backported patchs), we mount without cache=mmap
+#Due to our old "9p" client, we must set version=9p2000.L
+if ! pcocc ssh -j $PCOCC_ID vm1 "sleep 5; sudo mount -v -t 9p -o aname=/mnt/lustre,privport=1,posixacl,msize=1048576,trans=tcp,version=9p2000.L 10.251.0.1 /mnt/sigmund" | tee mount_logs; then
+    VERF="0"
+    MESSAGE="Build OK - 9p mount failed\n\nmount:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' mount_logs)\nserver:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
+    gerrit_publish
 fi
 
 #####################
@@ -148,7 +149,7 @@ timeout 30m pcocc ssh -j $PCOCC_ID vm1 -- sudo /opt/sigmund/sigmund.sh 9p_plus_p
 #####################
 #umount on vm0 and stop server on vm1
 #####################
-pcocc ssh -j $PCOCC_ID vm1 -- sudo umount /mnt || true
+pcocc ssh -j $PCOCC_ID vm1 -- sudo umount /mnt/sigmund || true
 pcocc ssh -j $PCOCC_ID vm0 -- sudo pkill ganesha.nfsd || true
 
 if ! wait $SERVER || ! grep -q "exited normally" server_logs; then
@@ -156,6 +157,12 @@ if ! wait $SERVER || ! grep -q "exited normally" server_logs; then
   MESSAGE="Build OK - server crashed/hang:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)\ntest logs:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' test_logs)"
   gerrit_publish
 fi
+
+#####################
+#stop hsm and lustre on vm0
+#####################
+pcocc ssh -j $PCOCC_ID vm0 -- sudo pkill lhsmtool_posix || true
+pcocc ssh -j $PCOCC_ID vm0 -- sudo /usr/lib64/lustre/tests/llmountcleanup.sh || true
 
 #####################
 #get back test_report.xml from vm1
