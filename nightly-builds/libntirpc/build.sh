@@ -10,11 +10,7 @@ artifact()
 set -e
 
 # install basic dependencies for building the tarball and srpm
-# yum -y install git autoconf automake gcc libtool bison flex make rpm-build mock createrepo_c
-yum -y install git autoconf automake gcc libtool bison flex make rpm-build mock createrepo_c
-# gluster repositories contain additional -devel packages
-yum -y install centos-release-gluster
-yum -y install cmake krb5-devel
+yum -y install git mock createrepo_c
 
 # clone the repository, github is faster than our Gerrit
 #git clone https://review.gluster.org/glusterfs
