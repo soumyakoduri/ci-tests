@@ -87,7 +87,7 @@ pushd ${RESULTDIR}
 createrepo_c .
 
 # update/create a .repo file that can be used by yum
-curl ${TEMPLATES_URL}/nfs-ganesha.repo.in | sed s/XXVERSIONXX/${VERSION}/ > ../../../nfs-ganesha-${GIT_VERSION}.repo
+curl ${TEMPLATES_URL}/nfs-ganesha.repo.in | sed s/XXVERSIONXX/${GIT_VERSION}/ > ../../../nfs-ganesha-${GIT_VERSION}.repo
 popd
 
 # rsync the new repo and .repo file to to the public server
