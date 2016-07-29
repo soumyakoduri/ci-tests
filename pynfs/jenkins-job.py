@@ -20,6 +20,8 @@ arch=os.getenv("CENTOS_ARCH")
 count=2
 server_script_url=os.getenv("SERVER_TEST_SCRIPT")
 client_script_url=os.getenv("CLIENT_TEST_SCRIPT")
+pynfs_git_repo=os.getenv("PYNFS_GIT_REPO")
+pynfs_git_branch=os.getenv("PYNFS_GIT_BRANCH")
 
 # read the API key for Duffy from the ~/duffy.key file
 fo=open("/home/nfs-ganesha/duffy.key")
@@ -44,8 +46,8 @@ if rtn_code == 0:
     cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
         yum -y install curl &&
         curl -o build.sh %s &&
-        NFS_SERVER="%s" bash build.sh'
-    """ % (b['hosts'][1], client_script_url, b['hosts'][0])
+        NFS_SERVER="%s" PYNFS_GIT_REPO="%s" PYNFS_GIT_BRANCH="%s" bash build.sh'
+    """ % (b['hosts'][1], client_script_url, b['hosts'][0], pynfs_git_repo, pynfs_git_branch)
     rtn_code=subprocess.call(cmd, shell=True)
 
 # return the system(s) to duffy

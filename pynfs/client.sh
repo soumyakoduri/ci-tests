@@ -18,11 +18,13 @@ set -x
 # variables we expect
 [ -n "${NFS_SERVER}" ]
 [ -n "${EXPORT}" ]
+[ -n "${PYNFS_GIT_REPO}" ]
+[ -n "${PYNFS_GIT_BRANCH}" ]
 
 yum -y install git gcc nfs-utils redhat-rpm-config python-devel krb5-devel
 
 #install pynfs test suite
-git clone git://linux-nfs.org/~bfields/pynfs.git
+git clone --branch ${PYNFS_GIT_BRANCH} ${PYNFS_GIT_REPO}
 cd pynfs
 yes  | python setup.py build
 cd nfs4.0
