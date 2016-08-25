@@ -15,6 +15,11 @@ The other directories contain additional (mostly client-site) test-scripts and
 are used for scheduling runs of the jobs. Examples of the jobs with additional
 schedulers are in the `nightly-builds` directory.
 
+## Connectathon
+The `cthon04` directory contains the `client.sh` script and a Jenkins `.xml` to
+run the tests from the pynfs project. The Jenkins `.xml` job runs the a common
+script to install and configure a server.
+
 ## pynfs
 The `pynfs` directory contains the `client.sh` script and a Jenkins `.xml` to
 run the tests from the pynfs project. The Jenkins `.xml` job runs the a common
