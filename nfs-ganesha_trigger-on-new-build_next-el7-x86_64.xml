@@ -35,7 +35,7 @@
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
   <triggers>
-    <org.jenkinsci.plugins.urltrigger.URLTrigger plugin="urltrigger@0.40">
+    <org.jenkinsci.plugins.urltrigger.URLTrigger plugin="urltrigger@0.41">
       <spec># run every two hours
 H */2 * * *</spec>
       <triggerLabel>nfs-ganesha</triggerLabel>
@@ -67,7 +67,7 @@ CENTOS_ARCH=x86_64
 YUM_REPO=http://artifacts.ci.centos.org/nfs-ganesha/nightly/nfs-ganesha-next.repo</properties>
             </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
           </configs>
-          <projects>nfs-ganesha_cthon04</projects>
+          <projects>nfs_ganesha_cthon04</projects>
           <condition>ALWAYS</condition>
           <triggerWithNoParameters>false</triggerWithNoParameters>
           <buildAllNodesWithLabel>false</buildAllNodesWithLabel>
@@ -80,7 +80,7 @@ CENTOS_ARCH=x86_64
 YUM_REPO=http://artifacts.ci.centos.org/nfs-ganesha/nightly/nfs-ganesha-next.repo</properties>
             </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
           </configs>
-          <projects>nfs-ganesha_pynfs</projects>
+          <projects>nfs_ganesha_pynfs</projects>
           <condition>ALWAYS</condition>
           <triggerWithNoParameters>false</triggerWithNoParameters>
           <buildAllNodesWithLabel>false</buildAllNodesWithLabel>

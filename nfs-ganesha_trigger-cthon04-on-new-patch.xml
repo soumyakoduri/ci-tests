@@ -85,7 +85,7 @@ GERRIT_PROJECT=${GERRIT_PROJECT}
 GERRIT_REFSPEC=${GERRIT_REFSPEC}</properties>
             </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
           </configs>
-          <projects>nfs-ganesha_cthon04</projects>
+          <projects>nfs_ganesha_cthon04</projects>
           <condition>ALWAYS</condition>
           <triggerWithNoParameters>false</triggerWithNoParameters>
           <block/>

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Run pynfs (NFSv4.0) tests against the latest build of Ganesha with FSAL_GLUSTER.</description>
+  <description>Run cthon04 tests against the latest build of Ganesha with FSAL_GLUSTER.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <jenkins.model.BuildDiscarderProperty>
@@ -12,11 +12,11 @@
         <artifactNumToKeep>-1</artifactNumToKeep>
       </strategy>
     </jenkins.model.BuildDiscarderProperty>
-    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.17.1">
-      <projectUrl>http://git.linux-nfs.org/?p=bfields/pynfs.git;a=summary</projectUrl>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.19.1">
+      <projectUrl>http://git.linux-nfs.org/?p=steved/cthon04.git;a=summary/</projectUrl>
       <displayName></displayName>
     </com.coravy.hudson.plugins.github.GithubProjectProperty>
-    <com.chikli.hudson.plugin.naginator.NaginatorOptOutProperty plugin="naginator@1.15">
+    <com.chikli.hudson.plugin.naginator.NaginatorOptOutProperty plugin="naginator@1.17">
       <optOut>false</optOut>
     </com.chikli.hudson.plugin.naginator.NaginatorOptOutProperty>
     <hudson.model.ParametersDefinitionProperty>
@@ -34,7 +34,7 @@
         <hudson.model.StringParameterDefinition>
           <name>CLIENT_TEST_SCRIPT</name>
           <description>Test script to execute on the reserved machine acting as a client.</description>
-          <defaultValue>https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/pynfs/client.sh</defaultValue>
+          <defaultValue>https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/cthon04/client.sh</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>YUM_REPO</name>
@@ -48,7 +48,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>GERRIT_PROJECT</name>
-          <description>Project name from Gerrit (like "ffilz/nfs-ganesha").</description>
+          <description>Project name from Gerrit (like &quot;ffilz/nfs-ganesha&quot;).</description>
           <defaultValue>ffilz/nfs-ganesha</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -59,7 +59,7 @@
         <hudson.model.StringParameterDefinition>
           <name>EXPORT</name>
           <description>Name of the NFS-export to create.</description>
-          <defaultValue>pynfs</defaultValue>
+          <defaultValue>cthon04</defaultValue>
         </hudson.model.StringParameterDefinition>
         <hudson.model.ChoiceParameterDefinition>
           <name>CENTOS_VERSION</name>
@@ -98,8 +98,9 @@
 python jenkins-job.py</command>
     </hudson.tasks.Shell>
   </builders>
+  <publishers/>
   <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.28">
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.29">
       <deleteDirs>false</deleteDirs>
       <cleanupParameter></cleanupParameter>
       <externalDelete></externalDelete>
