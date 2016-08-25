@@ -101,7 +101,7 @@ GERRIT_REFSPEC=${GERRIT_REFSPEC}</properties>
       </configs>
     </hudson.plugins.parameterizedtrigger.TriggerBuilder>
     <hudson.tasks.Shell>
-      <command>curl https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/common-scripts/basic-gluster.sh | bash</command>
+      <command>curl https://raw.githubusercontent.com/nfs-ganesha/ci-tests/centos-ci/common-scripts/add-gerrit-comment.sh | bash</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
