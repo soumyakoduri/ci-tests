@@ -29,6 +29,9 @@ cd nfs4.0
 	--verbose \
 	--maketree \
 	--showomit \
-	--rundeps all
+	--rundeps \
+	all \
+	ganesha \
+	noWRT18 noRD4
 
 # implicit exit status from ./testserver.py
