@@ -61,6 +61,11 @@
           <description>Name of the NFS-export to create.</description>
           <defaultValue>pynfs</defaultValue>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TEST_PARAMETERS</name>
+          <description>Pass additional parameters/options to the pynfs execution.</description>
+          <defaultValue>noWRT18 noRD4 noSEC7</defaultValue>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.ChoiceParameterDefinition>
           <name>CENTOS_VERSION</name>
           <description>CentOS version to run the tests on (server + client)</description>

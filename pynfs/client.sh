@@ -32,6 +32,6 @@ cd nfs4.0
 	--rundeps \
 	all \
 	ganesha \
-	noWRT18 noRD4
+	${TEST_PARAMETERS}
 
 # implicit exit status from ./testserver.py
