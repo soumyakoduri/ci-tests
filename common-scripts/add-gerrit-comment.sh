@@ -43,7 +43,7 @@ then
 fi
 
 # the BUILD_URL is for this job, and not very useful in a review comment.
-JOB_NUMBER_VAR="TRIGGERED_BUILD_NUMBER_${!LAST_TRIGGERED_JOB_NAME}"
+JOB_NUMBER_VAR="TRIGGERED_BUILD_NUMBER_${LAST_TRIGGERED_JOB_NAME}"
 JOB_OUTPUT="${JENKINS_URL}/job/${LAST_TRIGGERED_JOB_NAME}/${!JOB_NUMBER_VAR}/console"
 
 # we accept different return values
