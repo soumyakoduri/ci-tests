@@ -88,14 +88,7 @@ GERRIT_REFSPEC=${GERRIT_REFSPEC}</properties>
           <projects>nfs-ganesha_cthon04</projects>
           <condition>ALWAYS</condition>
           <triggerWithNoParameters>false</triggerWithNoParameters>
-          <block>
-            <buildStepFailureThreshold>
-              <name>FAILURE</name>
-              <ordinal>2</ordinal>
-              <color>RED</color>
-              <completeBuild>true</completeBuild>
-            </buildStepFailureThreshold>
-          </block>
+          <block/>
           <buildAllNodesWithLabel>false</buildAllNodesWithLabel>
         </hudson.plugins.parameterizedtrigger.BlockableBuildTriggerConfig>
       </configs>
