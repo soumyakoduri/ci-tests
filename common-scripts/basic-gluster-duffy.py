@@ -33,12 +33,12 @@ get_nodes_url="%s/Node/get?key=%s&ver=%s&arch=%s&count=%s" % (url_base,api,ver,a
 dat=urllib.urlopen(get_nodes_url).read()
 b=json.loads(dat)
 
-# NFS-Ganesha Server
-server_env="GERRIT_HOST='%s'" % os.getenv("GERRIT_HOST")
-server_env+=" GERRIT_PROJECT='%s'" % os.getenv("GERRIT_PROJECT")
-server_env+=" GERRIT_REFSPEC='%s'" % os.getenv("GERRIT_REFSPEC")
-server_env+=" YUM_REPO='%s'" % os.getenv("YUM_REPO", "")
-server_env+=" GLUSTER_VOLUME='%s'" % os.getenv("EXPORT")
+# NFS-Ganesha Server (parameters need double escape, passed on ssh commandline)
+server_env="GERRIT_HOST='\"%s\"'" % os.getenv("GERRIT_HOST")
+server_env+=" GERRIT_PROJECT='\"%s\"'" % os.getenv("GERRIT_PROJECT")
+server_env+=" GERRIT_REFSPEC='\"%s\"'" % os.getenv("GERRIT_REFSPEC")
+server_env+=" YUM_REPO='\"%s\"'" % os.getenv("YUM_REPO", "")
+server_env+=" GLUSTER_VOLUME='\"%s\"'" % os.getenv("EXPORT")
 
 cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
 	yum -y install curl &&
@@ -51,10 +51,10 @@ if rtn_code != "0":
 else:
        verdict="FAILURE"
 
-# NFS-Client
-client_env="SERVER='%s'" % b['hosts'][0]
-client_env+=" EXPORT='/%s'" % os.getenv("EXPORT")
-client_env+=" TEST_PARAMETERS='%s'" % os.getenv("TEST_PARAMETERS", "")
+# NFS-Client (parameters need double escape, passed on ssh commandline)
+client_env="SERVER='\"%s\"'" % b['hosts'][0]
+client_env+=" EXPORT='\"/%s\"'" % os.getenv("EXPORT")
+client_env+=" TEST_PARAMETERS='\"%s\"'" % os.getenv("TEST_PARAMETERS", "")
 
 cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
 	yum -y install curl nfs-utils &&
