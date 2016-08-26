@@ -1,4 +1,3 @@
-
 #
 # from: https://raw.githubusercontent.com/kbsingh/centos-ci-scripts/master/build_python_script.py
 #
@@ -34,16 +33,22 @@ dat=urllib.urlopen(get_nodes_url).read()
 b=json.loads(dat)
 
 # NFS-Ganesha Server (parameters need double escape, passed on ssh commandline)
-server_env="GERRIT_HOST='\"%s\"'" % os.getenv("GERRIT_HOST")
-server_env+=" GERRIT_PROJECT='\"%s\"'" % os.getenv("GERRIT_PROJECT")
-server_env+=" GERRIT_REFSPEC='\"%s\"'" % os.getenv("GERRIT_REFSPEC")
-server_env+=" YUM_REPO='\"%s\"'" % os.getenv("YUM_REPO", "")
-server_env+=" GLUSTER_VOLUME='\"%s\"'" % os.getenv("EXPORT")
+server_env="export GERRIT_HOST='%s'" % os.getenv("GERRIT_HOST")
+server_env+=" GERRIT_PROJECT='%s'" % os.getenv("GERRIT_PROJECT")
+server_env+=" GERRIT_REFSPEC='%s'" % os.getenv("GERRIT_REFSPEC")
+server_env+=" YUM_REPO='%s'" % os.getenv("YUM_REPO", "")
+server_env+=" GLUSTER_VOLUME='%s'" % os.getenv("EXPORT")
+
+# add the export with environment to ~/.bashrc
+cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
+tee -a ~/.bashrc' <<< "%s"
+""" % (b['hosts'][0], server_env)
+subprocess.call(cmd, shell=True)
 
 cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
 	yum -y install curl &&
-	curl %s | %s bash -
-'""" % (b['hosts'][0], server_script, server_env)
+	curl %s | bash -
+'""" % (b['hosts'][0], server_script)
 rtn_code=subprocess.call(cmd, shell=True)
 
 if rtn_code != "0":
@@ -52,14 +57,19 @@ else:
        verdict="FAILURE"
 
 # NFS-Client (parameters need double escape, passed on ssh commandline)
-client_env="SERVER='\"%s\"'" % b['hosts'][0]
-client_env+=" EXPORT='\"/%s\"'" % os.getenv("EXPORT")
-client_env+=" TEST_PARAMETERS='\"%s\"'" % os.getenv("TEST_PARAMETERS", "")
+client_env="export SERVER='%s'" % b['hosts'][0]
+client_env+=" EXPORT='/%s'" % os.getenv("EXPORT")
+client_env+=" TEST_PARAMETERS='%s'" % os.getenv("TEST_PARAMETERS", "")
+
+# add the export with environment to ~/.bashrc
+cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
+tee -a ~/.bashrc' <<< "%s"
+""" % (b['hosts'][1], client_env)
+subprocess.call(cmd, shell=True)
 
 cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
-	yum -y install curl nfs-utils &&
-	curl %s | %s bash -
-'""" % (b['hosts'][1], client_script, client_env)
+	curl %s | bash -
+'""" % (b['hosts'][1], client_script)
 rtn_code=subprocess.call(cmd, shell=True)
 
 if rtn_code != "0":
