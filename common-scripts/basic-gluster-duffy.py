@@ -51,10 +51,7 @@ cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%
 '""" % (b['hosts'][0], server_script)
 rtn_code=subprocess.call(cmd, shell=True)
 
-if rtn_code != "0":
-       verdict="SUCCESS"
-else:
-       verdict="FAILURE"
+# TODO: check rtn_code and skip client part after failure
 
 # NFS-Client (parameters need double escape, passed on ssh commandline)
 client_env="export SERVER='%s'" % b['hosts'][0]
@@ -71,15 +68,6 @@ cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%
 	curl %s | bash -
 '""" % (b['hosts'][1], client_script)
 rtn_code=subprocess.call(cmd, shell=True)
-
-if rtn_code != "0":
-       verdict="SUCCESS"
-else:
-       verdict="FAILURE"
-
-#publish='gerrit review --message "' + os.getenv("BUILD_URL") + 'consoleFull : ' + verdict + '" --project '+ os.getenv("GERRIT_PROJECT") + ' --notify=NONE ' +  os.getenv("GERRIT_PATCHSET_REVISION")
-#result_submit="ssh -l jenkins-glusterorg -i /home/nfs-ganesha/.ssh/gerrithub\@gluster.org -o StrictHostKeyChecking=no -p 29418 review.gerrithub.io '%s' " % (publish)
-#rtn_submit=subprocess.call(result_submit, shell=True)
 
 # return the system(s) to duffy
 done_nodes_url="%s/Node/done?key=%s&ssid=%s" % (url_base, api, b['ssid'])
