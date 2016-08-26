@@ -54,7 +54,7 @@ else:
 # NFS-Client
 client_env="SERVER='%s'" % b['hosts'][0]
 client_env+=" EXPORT='/%s'" % os.getenv("EXPORT")
-client_env+=" TEST_PARAMETERS='/%s'" % os.getenv("TEST_PARAMETERS", "")
+client_env+=" TEST_PARAMETERS='%s'" % os.getenv("TEST_PARAMETERS", "")
 
 cmd="""ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@%s '
 	yum -y install curl nfs-utils &&
