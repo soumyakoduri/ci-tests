@@ -58,8 +58,7 @@ libwbclient-devel
 redhat-rpm-config
 rpm-build
 glusterfs-api-devel
-libcephfs-devel
-libcephfs1
+libcephfs1-devel
 "
 
 git clone ${GIT_REPO}
