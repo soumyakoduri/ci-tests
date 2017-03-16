@@ -107,7 +107,7 @@ systemctl stop firewalld || service iptables stop
 setenforce 0
 
 # Export the volume
-/usr/libexec/ganesha/create-export-ganesha.sh /etc/ganesha ${GLUSTER_VOLUME}
+/usr/libexec/ganesha/create-export-ganesha.sh /etc/ganesha on ${GLUSTER_VOLUME}
 /usr/libexec/ganesha/dbus-send.sh /etc/ganesha on ${GLUSTER_VOLUME}
 
 # wait till server comes out of grace period
