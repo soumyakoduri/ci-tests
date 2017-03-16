@@ -1,11 +1,7 @@
 set -o pipefail
 
-if [[ -n "$GERRIT_REFSPEC" ]]; then
-  GERRIT_REF="$GERRIT_REFSPEC"
-  REVISION="$GERRIT_PATCHSET_REVISION"
-  GERRIT_PUBLISH=true
-  CHECKPATCH=false
-fi
+GERRIT_REF="$GERRIT_REFSPEC"
+REVISION="$GERRIT_PATCHSET_REVISION"
 
 SSH_GERRIT="ssh -p 29418 cea-gerrithub-hpc@review.gerrithub.io"
 cleanup() {
@@ -85,38 +81,40 @@ fi
 rm -f pcocc_*.{err,out} server_logs mount_logs test_logs
 
 #####################
-#LAUNCH PCOCC VM
+# LAUNCH PCOCC VM
 #####################
 PCOCC_ID=$(pcocc batch -w $(hostname -s) -c 4 ganesha:2 | awk '{print $NF}')
 
 PCOCC_FILE=/tmp/.pcocc_${PCOCC_ID}_vm_0
 
 while ! [[ -e $PCOCC_FILE ]]; do
-  sleep 1
+  sleep 10
 done
 
 #####################
-#Test with ssh if the pcocc vm is successfully started
+# Test with ssh if the pcocc vm is successfully started
 #####################
 # VM sometimes refuse first ssh, try twice:
 pcocc ssh -j $PCOCC_ID -o ConnectTimeout=600 vm0 -- "echo VM started" || { sleep 10; pcocc ssh -j $PCOCC_ID -o ConnectTimeout=600 vm0 -- "echo VM started"; }
 
 #####################
-#Copy ganesha source through a 9P mount from jenkins workspace to /export device
+# Copy ganesha source through a 9P mount from jenkins workspace to /export device
 #####################
 pcocc ssh -j $PCOCC_ID vm0 -- "sudo mount -t 9p -o trans=virtio workspace /mnt && cp -a /mnt/nfs-ganesha /export/nfs-ganesha && mkdir /export/nfs-ganesha/build"
 
 #####################
-#TRY CONFIG GANESHA ON vm0
+# CONFIG GANESHA ON vm0
 #####################
-if ! pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc"; then
+CMAKE_OPTS='-DBUILD_CONFIG=everything -DCMAKE_CXX_COMPILER=clang -DCMAKE_C_COMPILER=clang -DCMAKE_LINKER=clang -DSANITIZE_ADDRESS=ON -DUSE_9P_RDMA=ON'
+
+if ! pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ $CMAKE_OPTS"; then
 	VERF="-1"
-	MESSAGE="Cmake failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ -DBUILD_CONFIG=everything -DLUSTRE_PREFIX=/opt/lustre/usr -DUSE_9P_RDMA=ON -DUSE_FSAL_HPSS=ON  -DNTIRPC_CLONE_URL=/export/nfs-ganesha/src/libntirpc 2>&1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+	MESSAGE="Cmake failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && cmake /export/nfs-ganesha/src/ $CMAKE_OPTS 2>&1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
 	gerrit_publish
 fi
 
 #####################
-#TRY BUILD GANESHA ON vm0
+# BUILD GANESHA ON vm0
 #####################
 if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8"; then
 	VERF="-1"	
@@ -125,28 +123,28 @@ if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8"; then
 fi
 
 #####################
-#LAUNCH GANESHA SERVER ON vm0
+# LAUNCH GANESHA SERVER ON vm0
 #####################
-timeout 30m pcocc ssh -j $PCOCC_ID vm0 sudo gdb --batch --ex r --ex bt --args /export/nfs-ganesha/build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /opt/ganesha.vfs.conf  2>&1 | tee server_logs&
+timeout 30m pcocc ssh -j $PCOCC_ID vm0 -- "sudo ASAN_OPTIONS='detect_leaks=0:detect_stack_use_after_return=1' gdb --batch --ex r --ex 'b __sanitizer::Die' --ex bt --args /export/nfs-ganesha/build/MainNFSD/ganesha.nfsd -L STDOUT -F -f /opt/ganesha.vfs.conf" 2>&1 | tee server_logs&
 SERVER=$!
 
 #####################
-#9P mount on /mnt on vm1
+# 9P mount on /mnt on vm1
 #####################
-if ! pcocc ssh -j $PCOCC_ID vm1 "sleep 5; sudo mount -t 9p -o aname=export,cache=mmap,privport=1,posixacl,msize=1048576,trans=tcp 10.251.0.1 /mnt" | tee mount_logs; then
+if ! pcocc ssh -j $PCOCC_ID vm1 "sudo modprobe 9pnet_rdma; sleep 5; sudo mount -t 9p -o aname=export,cache=mmap,privport=1,posixacl,msize=1048576,trans=rdma,port=5640 10.251.0.1 /mnt" | tee mount_logs; then
 	VERF="0"
 	MESSAGE="Build OK - 9p mount failed\n\nmount:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' mount_logs)\nserver:\n$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
 	gerrit_publish
 fi
 
 #####################
-#SIGMUND TEST on vm1
+# SIGMUND TEST on vm1
 #####################
 timeout 30m pcocc ssh -j $PCOCC_ID vm1 -- sudo /opt/sigmund/sigmund.sh 9p_plus_pynfs -j -q -s $SIGMUND_SPEED 2>&1 | tee test_logs || true
 
 
 #####################
-#umount on vm0 and stop server on vm1
+# umount on vm0 and stop server on vm1
 #####################
 pcocc ssh -j $PCOCC_ID vm1 -- sudo umount /mnt || true
 pcocc ssh -j $PCOCC_ID vm0 -- sudo pkill ganesha.nfsd || true
@@ -158,7 +156,7 @@ if ! wait $SERVER || ! grep -q "exited normally" server_logs; then
 fi
 
 #####################
-#get back test_report.xml from vm1
+# Get back test_report.xml from vm1
 #####################
 if ! pcocc scp -j $PCOCC_ID -- vm1:/tmp/test_report.xml .; then
   VERF="-1"
@@ -167,7 +165,7 @@ if ! pcocc scp -j $PCOCC_ID -- vm1:/tmp/test_report.xml .; then
 fi
 
 #####################
-#analyse and report result
+# Analyze and report result
 #####################
 TEST_TOTAL=$(grep -c '<testcase' test_report.xml) || true
 TEST_SKIPPED=$(grep -c '<skipped' test_report.xml) || true
@@ -178,7 +176,7 @@ if [[ "$TEST_FAILED" == "0" ]]; then
   MESSAGE="Build OK - tests OK ($TEST_TOTAL)"
 else
   FAILURES=$(grep -B1 '<failure' test_report.xml | sed -ne 's/.*name="\([^"]*\)".*/\1/p' || true)
-  VERF="0"
+  VERF="-1"
   MESSAGE="Build OK - tests failures ($TEST_FAILED/$TEST_TOTAL failed):"$'\n'"$FAILURES"$'\n'"server log:"$'\n'"$(sed -e 's/\\/\\\\/g' -e 's/\"/\\\"/g' server_logs)"
 fi
 
