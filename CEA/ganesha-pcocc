@@ -116,9 +116,9 @@ fi
 #####################
 # BUILD GANESHA ON vm0
 #####################
-if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8"; then
+if ! pcocc ssh -j $PCOCC_ID vm0 "cd /export/nfs-ganesha/build && make -j8 -k"; then
 	VERF="-1"	
-	MESSAGE="Build failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && make 2>&1 >/dev/null" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
+	MESSAGE="Build failed:"$'\n'$(pcocc ssh -j $PCOCC_ID vm0 -- "cd /export/nfs-ganesha/build && make -k 2>&1 >/dev/null" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' || true)
 	gerrit_publish
 fi
 
