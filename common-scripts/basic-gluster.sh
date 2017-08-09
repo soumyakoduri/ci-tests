@@ -73,9 +73,13 @@ else
 	cmake -DCMAKE_BUILD_TYPE=Maintainer -DBUILD_CONFIG=everything ../src
 	make dist
 	rpmbuild -ta --define "_srcrpmdir $PWD" --define "_rpmdir $PWD" *.tar.gz
-	rpm_version=$(rpm -q --qf '%{VERSION}-%{RELEASE}' -p *.src.rpm)
 	rpm_arch=$(rpm -E '%{_arch}')
-	yum -y install ${rpm_arch}/nfs-ganesha-{,gluster-}${rpm_version}.${rpm_arch}.rpm
+	ganesha_version=$(rpm -q --qf '%{VERSION}-%{RELEASE}' -p *.src.rpm)
+	if [ -e ${rpm_arch}/libntirpc-devel*.rpm ]; then
+		ntirpc_version=$(rpm -q --qf '%{VERSION}-%{RELEASE}' -p ${rpm_arch}/libntirpc-devel*.rpm)
+		ntirpc_rpm=${rpm_arch}/libntirpc-${ntirpc_version}.${rpm_arch}.rpm
+	fi
+	yum -y install ${ntirpc_rpm} ${rpm_arch}/nfs-ganesha-{,gluster-}${ganesha_version}.${rpm_arch}.rpm
 
 	# start nfs-ganesha service with an empty configuration
 	> /etc/ganesha/ganesha.conf
