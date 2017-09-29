@@ -133,6 +133,7 @@ setenforce 0
 # Export the volume
 mkdir -p /usr/libexec/ganesha
 cd /usr/libexec/ganesha
+yum -y install wget
 wget https://raw.githubusercontent.com/gluster/glusterfs/release-3.10/extras/ganesha/scripts/create-export-ganesha.sh
 wget https://raw.githubusercontent.com/gluster/glusterfs/release-3.10/extras/ganesha/scripts/dbus-send.sh
 chmod 755 create-export-ganesha.sh dbus-send.sh
