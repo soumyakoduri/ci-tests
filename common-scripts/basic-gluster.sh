@@ -29,7 +29,7 @@ set -e
 set -x
 
 # enable repositories
-yum -y install centos-release-gluster yum-utils
+yum -y install centos-release-gluster-test yum-utils
 
 # make sure rpcbind is running
 yum -y install rpcbind
